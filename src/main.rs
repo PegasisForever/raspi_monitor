@@ -1,6 +1,8 @@
 use std::fs;
 use failure::Error;
 use json_minimal::*;
+use std::env;
+use std::process::Command;
 
 fn read_file_as_float(name: &str) -> Result<f32, Error> {
     let content = fs::read_to_string(name)?;
@@ -20,13 +22,27 @@ fn add_json_f32(json: &mut Json, key: &str, value: f32) {
     );
 }
 
+fn run_command(cmd: String) -> String {
+    let mut command = Command::new("sh");
+    command.arg("-c");
+    command.arg(cmd);
+    let stdout = command.output().unwrap().stdout;
+    String::from_utf8(stdout).unwrap()
+}
+
 fn main() {
-    let mut json = Json::new();
-    add_json_f32(&mut json, "v", 1.0);
+    let args: Vec<String> = env::args().collect();
+    if args.contains(&("info".into())) {
+        print!("{}", run_command("uname -a".into()));
+        print!("{}", run_command("grep -H -v ^# /etc/*release".into()));
+    } else {
+        let mut json = Json::new();
+        add_json_f32(&mut json, "v", 1.0);
 
-    if let Ok(temp) = read_file_as_float("/sys/class/thermal/thermal_zone0/temp") {
-        add_json_f32(&mut json, "temp", temp / 1000.0);
+        if let Ok(temp) = read_file_as_float("/sys/class/thermal/thermal_zone0/temp") {
+            add_json_f32(&mut json, "temp", temp / 1000.0);
+        }
+
+        println!("{}", json.print());
     }
-
-    println!("{}", json.print());
 }
