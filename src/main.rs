@@ -40,7 +40,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args.contains(&("info".into())) {
         print!("{}", run_command("uname -a".into()));
-        print!("{}", run_command("grep -H -v ^# /etc/*release".into()));
+        print!("{}", run_command("grep -hv ^# /etc/*release".into()));
     } else {
         let sys = System::new();
         let mut json = Json::new();
