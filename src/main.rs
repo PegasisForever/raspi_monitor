@@ -50,10 +50,10 @@ fn main() {
             add_json_f64(&mut json, "cpu_temp", temp as f64);
         }
         if let Ok(mem) = sys.memory() {
-            let mem_used = (saturating_sub_bytes(mem.total, mem.free).as_u64() as f64) / 1024.0 / 1024.0;
-            let mem_total = (mem.total.as_u64() as f64) / 1024.0 / 1024.0;
-            add_json_f64(&mut json, "mem_used_mb", mem_used);
-            add_json_f64(&mut json, "mem_total_mb", mem_total);
+            let mem_used = (saturating_sub_bytes(mem.total, mem.free).as_u64() as f64) / 1024.0;
+            let mem_total = (mem.total.as_u64() as f64) / 1024.0;
+            add_json_f64(&mut json, "mem_used_kb", mem_used);
+            add_json_f64(&mut json, "mem_total_kb", mem_total);
         }
         if let Ok(load) = sys.load_average() {
             add_json_f64(&mut json, "load_1", load.one as f64);
@@ -61,8 +61,8 @@ fn main() {
             add_json_f64(&mut json, "load_15", load.fifteen as f64);
         }
         {
-            let stdout = read_file("/proc/stat").unwrap();
-            let first_line: &str = stdout.split("\n").next().unwrap();
+            let file_content = read_file("/proc/stat").unwrap();
+            let first_line: &str = file_content.split("\n").next().unwrap();
             let cpu_times: Vec<f64> = first_line.split_whitespace()
                 .skip(1)
                 .map(|num| num.parse::<f64>().unwrap())
@@ -82,11 +82,10 @@ fn main() {
             add_json_f64(&mut json, "cpu_max_mhz", (cpu_max_hertz as f64) / 1024.0);
         }
         {
-            let stdout = read_file("/proc/net/dev").unwrap();
-            println!("{}", stdout);
+            let file_content = read_file("/proc/net/dev").unwrap();
             let mut total_received_bytes = 0.0;
             let mut total_sent_bytes = 0.0;
-            stdout.split("\n")
+            file_content.split("\n")
                 .skip(2)
                 .for_each(|line: &str| {
                     let nums = line.split_whitespace().collect::<Vec<&str>>();
@@ -97,6 +96,14 @@ fn main() {
                 });
             add_json_f64(&mut json, "received_bytes", total_received_bytes);
             add_json_f64(&mut json, "sent_bytes", total_sent_bytes);
+        }
+        {
+            let std_out = run_command("df | grep ' /$'".into());
+            let mut iter = std_out.split_whitespace().skip(2);
+            let root_used_kb = iter.next().unwrap().parse::<f64>().unwrap();
+            let root_total_kb = root_used_kb + iter.next().unwrap().parse::<f64>().unwrap();
+            add_json_f64(&mut json, "root_used_kb", root_used_kb);
+            add_json_f64(&mut json, "root_total_kb", root_total_kb);
         }
 
         println!("{}", json.print());
