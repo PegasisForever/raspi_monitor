@@ -4,6 +4,7 @@ use json_minimal::*;
 use std::env;
 use std::process::Command;
 use systemstat::{System, Platform, saturating_sub_bytes};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn read_file_as_float(name: &str) -> Result<f32, Error> {
     let content = fs::read_to_string(name)?;
@@ -36,6 +37,13 @@ fn run_command(cmd: String) -> String {
     String::from_utf8(stdout).unwrap()
 }
 
+fn get_current_millis() -> f64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as f64
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.contains(&("info".into())) {
@@ -45,6 +53,7 @@ fn main() {
         let sys = System::new();
         let mut json = Json::new();
         add_json_f64(&mut json, "v", 1.0);
+        add_json_f64(&mut json, "time", get_current_millis());
 
         if let Ok(temp) = sys.cpu_temp() {
             add_json_f64(&mut json, "cpu_temp", temp as f64);
