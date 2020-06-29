@@ -5,6 +5,7 @@ use std::env;
 use std::process::Command;
 use systemstat::{System, Platform, saturating_sub_bytes};
 use std::time::{SystemTime, UNIX_EPOCH};
+use fs2::statvfs;
 
 fn read_file_as_float(name: &str) -> Result<f32, Error> {
     let content = fs::read_to_string(name)?;
@@ -106,13 +107,47 @@ fn main() {
             add_json_f64(&mut json, "received_bytes", total_received_bytes);
             add_json_f64(&mut json, "sent_bytes", total_sent_bytes);
         }
-        {
-            let std_out = run_command("df | grep ' /$'".into());
-            let mut iter = std_out.split_whitespace().skip(2);
-            let root_used_kb = iter.next().unwrap().parse::<f64>().unwrap();
-            let root_total_kb = root_used_kb + iter.next().unwrap().parse::<f64>().unwrap();
-            add_json_f64(&mut json, "root_used_kb", root_used_kb);
-            add_json_f64(&mut json, "root_total_kb", root_total_kb);
+        if let Ok(file_content) = read_file("/proc/swaps") {
+            let mut swap_total_kb = 0.0;
+            let mut swap_used_kb = 0.0;
+            file_content.trim()
+                .split("\n")
+                .skip(1)
+                .for_each(|line: &str| {
+                    let mut iter = line
+                        .split_whitespace()
+                        .skip(2);
+                    swap_total_kb += iter.next().unwrap().parse::<f64>().unwrap();
+                    swap_used_kb = iter.next().unwrap().parse::<f64>().unwrap();
+                });
+            add_json_f64(&mut json, "swap_total_kb", swap_total_kb);
+            add_json_f64(&mut json, "swap_used_kb", swap_used_kb);
+        }
+        if let Ok(file_content) = read_file("/proc/diskstats") {
+            let mut total_disk_read_kb = 0.0;
+            let mut total_disk_write_kb = 0.0;
+            file_content.trim()
+                .split("\n")
+                .map(|line: &str| {
+                    line.split_whitespace()
+                        .collect::<Vec<&str>>()
+                })
+                .for_each(|line: Vec<&str>| {
+                    let name = line[2];
+                    let last_char = name.chars().last().unwrap();
+                    if !('0'..='9').contains(&last_char) &&
+                        !name.starts_with("loop") &&
+                        !name.starts_with("ram") {
+                        total_disk_read_kb += line[5].parse::<f64>().unwrap() / 2.0;
+                        total_disk_write_kb += line[9].parse::<f64>().unwrap() / 2.0;
+                    }
+                });
+            add_json_f64(&mut json, "total_disk_read_kb", total_disk_read_kb);
+            add_json_f64(&mut json, "total_disk_write_kb", total_disk_write_kb);
+        }
+        if let Ok(fs_stats) = statvfs("/") {
+            add_json_f64(&mut json, "root_used_kb", (fs_stats.total_space() - fs_stats.free_space()) as f64 / 1024.0);
+            add_json_f64(&mut json, "root_total_kb", fs_stats.total_space() as f64 / 1024.0);
         }
 
         println!("{}", json.print());
