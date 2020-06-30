@@ -126,6 +126,7 @@ fn main() {
         if let Ok(file_content) = read_file("/proc/diskstats") {
             let mut total_disk_read_kb = 0.0;
             let mut total_disk_write_kb = 0.0;
+            let mut last_device = "aaaa";
             file_content.trim()
                 .split("\n")
                 .map(|line: &str| {
@@ -134,10 +135,10 @@ fn main() {
                 })
                 .for_each(|line: Vec<&str>| {
                     let name = line[2];
-                    let last_char = name.chars().last().unwrap();
-                    if !('0'..='9').contains(&last_char) &&
-                        !name.starts_with("loop") &&
-                        !name.starts_with("ram") {
+                    if !name.starts_with("loop") &&
+                        !name.starts_with("ram") &&
+                        !name.starts_with(last_device) {
+                        last_device = name;
                         total_disk_read_kb += line[5].parse::<f64>().unwrap() / 2.0;
                         total_disk_write_kb += line[9].parse::<f64>().unwrap() / 2.0;
                     }
